@@ -68,6 +68,15 @@ android {
         }
     }
 
+    // Compress native libs (.so) in the APK — reduces download size significantly.
+    // Android extracts them at install time. Without this, Stockfish's libstockfish.so
+    // alone inflates the APK to 150-200 MB uncompressed.
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     dependenciesInfo {
         includeInApk = false
         includeInBundle = true

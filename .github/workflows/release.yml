@@ -81,18 +81,6 @@ jobs:
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Strip Flutter engine debug symbols (pre-build)
-        run: |
-          LLVM_STRIP=$(find "$ANDROID_NDK_HOME" -name "llvm-strip" 2>/dev/null | head -1)
-          echo "Strip tool: $LLVM_STRIP"
-          # Strip libflutter.so from Flutter engine cache (arm64 release)
-          find /opt/hostedtoolcache/flutter ~/.pub-cache -name "libflutter.so" 2>/dev/null | while read f; do
-            BEFORE=$(du -sh "$f" | cut -f1)
-            "$LLVM_STRIP" --strip-debug "$f" 2>/dev/null || true
-            AFTER=$(du -sh "$f" | cut -f1)
-            echo "  $f: $BEFORE → $AFTER"
-          done
-
       - name: Generate signing keystore
         run: |
           keytool -genkey -v \
@@ -122,52 +110,6 @@ jobs:
             --target-platform android-arm64 \
             --obfuscate \
             --split-debug-info=build/debug-info/arm64
-
-      - name: Strip + re-sign APK (remove residual DWARF)
-        run: |
-          LLVM_STRIP=$(find "$ANDROID_NDK_HOME" -name "llvm-strip" 2>/dev/null | head -1)
-          BUILD_TOOLS=$(ls -d "$ANDROID_SDK_ROOT/build-tools/"* 2>/dev/null | sort -V | tail -1)
-          ZIPALIGN="$BUILD_TOOLS/zipalign"
-          APKSIGNER="$BUILD_TOOLS/apksigner"
-          APK="build/app/outputs/flutter-apk/app-release.apk"
-          TMP="/tmp/strip_apk"
-
-          echo "Tools: strip=$LLVM_STRIP zipalign=$ZIPALIGN apksigner=$APKSIGNER"
-          echo "Before strip: $(du -sh $APK | cut -f1)"
-
-          mkdir -p "$TMP/work"
-          unzip -q "$APK" -d "$TMP/work"
-
-          # Strip debug symbols from all native libs
-          find "$TMP/work/lib" -name "*.so" -print0 | \
-            xargs -0 "$LLVM_STRIP" --strip-debug 2>/dev/null || true
-
-          # Remove old APK signature
-          rm -rf "$TMP/work/META-INF"
-
-          # Repack: native libs stored uncompressed, everything else compressed
-          cd "$TMP/work"
-          zip -r0 "$TMP/unsigned.apk" lib/
-          zip -r9 "$TMP/unsigned.apk" assets/ res/ kotlin/ 2>/dev/null || true
-          find . -maxdepth 1 \( -name "*.dex" -o -name "AndroidManifest.xml" \) | \
-            xargs zip -9 "$TMP/unsigned.apk" 2>/dev/null || true
-          # resources.arsc MUST be stored uncompressed on Android R+ (API 30+)
-          # Compressing it causes error -124 / INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION
-          find . -maxdepth 1 -name "resources.arsc" | \
-            xargs zip -0 "$TMP/unsigned.apk" 2>/dev/null || true
-
-          # Page-align native libs (4096 bytes); zipalign also 4-byte aligns everything else
-          "$ZIPALIGN" -f -p 4096 "$TMP/unsigned.apk" "$TMP/aligned.apk"
-
-          # Re-sign
-          "$APKSIGNER" sign \
-            --ks "$GITHUB_WORKSPACE/android/app/keystore.jks" \
-            --ks-pass pass:a1chess2024 \
-            --key-pass pass:a1chess2024 \
-            --out "$GITHUB_WORKSPACE/$APK" \
-            "$TMP/aligned.apk"
-
-          echo "After strip: $(du -sh "$GITHUB_WORKSPACE/$APK" | cut -f1)"
 
       - name: Rename and report APK size
         id: apkname
