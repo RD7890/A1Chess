@@ -17,7 +17,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "org.lichess.mobileV2"
+    namespace = "com.ryzix.rdchess"
     // compileSdk = flutter.compileSdkVersion
     // home_widget pulls in glance-appwidget and remote-creation-android, both of which
     // declare in their AAR metadata that all dependents (including the app) must compile
@@ -39,13 +39,13 @@ android {
     defaultConfig {
         // Flag required by flutter_local_notifications package
         multiDexEnabled = true
-        applicationId = "org.lichess.mobileV2"
+        applicationId = "com.ryzix.rdchess"
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         // Used by flutter_appauth plugin
-        manifestPlaceholders["appAuthRedirectScheme"] = "org.lichess.mobile"
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.ryzix.rdchess"
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
         }
