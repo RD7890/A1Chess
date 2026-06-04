@@ -76,7 +76,7 @@ class GameShareService {
   }) async {
     final boardPreferences = _ref.read(boardPreferencesProvider);
     final boardTheme = boardPreferences.boardTheme == BoardTheme.system
-        ? BoardTheme.brown
+        ? BoardTheme.green
         : boardPreferences.boardTheme;
     final pieceTheme = boardPreferences.pieceSet;
     final resp = await Future.wait([
@@ -103,7 +103,7 @@ class GameShareService {
   Future<XFile> chapterGif(StringId id, StringId chapterId) async {
     final boardPreferences = _ref.read(boardPreferencesProvider);
     final boardTheme = boardPreferences.boardTheme == BoardTheme.system
-        ? BoardTheme.brown
+        ? BoardTheme.green
         : boardPreferences.boardTheme;
     final pieceTheme = boardPreferences.pieceSet;
 

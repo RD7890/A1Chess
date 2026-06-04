@@ -309,8 +309,12 @@ class _BottomBar extends ConsumerWidget {
           icon: engineState.isEnabled ? Icons.bolt : Icons.bolt_outlined,
           highlighted: engineState.isEnabled,
         ),
-        if (!clock.timeIncrement.isInfinite)
-          BottomBarButton(
+        Visibility(
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          visible: !clock.timeIncrement.isInfinite,
+          child: BottomBarButton(
             label: clock.active ? 'Pause' : 'Resume',
             onTap: gameState.finished
                 ? null
@@ -323,6 +327,7 @@ class _BottomBar extends ConsumerWidget {
                   },
             icon: clock.active ? CupertinoIcons.pause : CupertinoIcons.play,
           ),
+        ),
         BottomBarButton(
           label: 'Previous',
           onTap: gameState.canGoBack
@@ -474,6 +479,8 @@ class _Player extends ConsumerWidget {
                 seconds: (clock.timeIncrement.time * 0.125).clamp(10, 60).toInt(),
               ),
               clockTenths: clockTenths,
+              fontSize: 18.0,
+              padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
             ),
     );
   }

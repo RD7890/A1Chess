@@ -63,12 +63,12 @@ class _PieceSetScreenState extends ConsumerState<PieceSetScreen> {
       ),
       body: SafeArea(
         child: ListView.separated(
-          itemCount: PieceSet.values.length,
+          itemCount: const [PieceSet.staunty].length,
           separatorBuilder: (_, _) => Theme.of(context).platform == TargetPlatform.iOS
               ? const PlatformDivider()
               : const SizedBox.shrink(),
           itemBuilder: (context, index) {
-            final pieceSet = PieceSet.values[index];
+            final pieceSet = const [PieceSet.staunty][index];
             return ListTile(
               trailing: boardPrefs.pieceSet == pieceSet ? const Icon(Icons.check) : null,
               title: Text(pieceSet.label),

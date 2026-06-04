@@ -110,13 +110,9 @@ flutter:
     - assets/chess_openings.db
     - assets/images/
     - assets/images/stockfish/
+    - assets/images/stockfish/2.0x/
     - assets/images/fide-fed/
-    - assets/sounds/futuristic/
-    - assets/sounds/lisp/
-    - assets/sounds/nes/
-    - assets/sounds/piano/
     - assets/sounds/standard/
-    - assets/sounds/sfx/
     - assets/board-thumbnails/
     - assets/positions.json
     - assets/endgames.json

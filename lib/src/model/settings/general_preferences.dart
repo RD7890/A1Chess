@@ -156,12 +156,7 @@ enum BackgroundThemeMode {
 }
 
 enum SoundTheme {
-  standard('Standard'),
-  piano('Piano'),
-  nes('NES'),
-  sfx('SFX'),
-  futuristic('Futuristic'),
-  lisp('Lisp');
+  standard('Standard');
 
   final String label;
 

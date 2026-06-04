@@ -15,6 +15,11 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// ABI → versionCode suffix mapping.
+// arm64-v8a (suffix 2) → Redmi 12C and other 64-bit devices
+// armeabi-v7a (suffix 1) → Poco C3 and older 32-bit devices
+val abiVersionCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2)
+
 android {
     namespace = "com.ryzix.rdchess"
     compileSdk = 37
@@ -38,8 +43,19 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["appAuthRedirectScheme"] = "com.ryzix.rdchess"
-        ndk {
-            abiFilters += listOf("arm64-v8a")
+
+        // Strip unused locale resources from Android framework and third-party libs.
+        resourceConfigurations += listOf("en")
+    }
+
+    // Produce one lean APK per ABI instead of one fat APK with all native libs.
+    // Result: app-arm64-v8a-release.apk (Redmi 12C) + app-armeabi-v7a-release.apk (Poco C3)
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
         }
     }
 
@@ -61,7 +77,6 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
-            // No debugSymbolLevel — removes ~100MB from APK
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -81,6 +96,26 @@ android {
         includeInApk = false
         includeInBundle = true
     }
+}
+
+// Rename each split APK to a human-readable filename and assign a unique
+// versionCode per ABI (required if uploading multiple APKs to Play Store).
+android.applicationVariants.all {
+    val variant = this
+    variant.outputs
+        .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
+        .forEach { output ->
+            val abiName = output.getFilter(com.android.build.OutputFile.ABI)
+            val abiCode = abiVersionCodes.getOrDefault(abiName, 0)
+            if (abiCode != 0) {
+                output.versionCodeOverride = variant.versionCode * 10 + abiCode
+            }
+            output.outputFileName = if (abiName != null) {
+                "rdchess-${variant.versionName}-${abiName}.apk"
+            } else {
+                "rdchess-${variant.versionName}-universal.apk"
+            }
+        }
 }
 
 flutter {

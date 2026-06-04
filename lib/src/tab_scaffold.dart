@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:lichess_mobile/l10n/l10n.dart';
 import 'package:lichess_mobile/src/styles/lichess_icons.dart';
 import 'package:lichess_mobile/src/utils/l10n_context.dart';
+import 'package:lichess_mobile/src/view/home/rdchess_home_screen.dart';
 import 'package:lichess_mobile/src/view/over_the_board/over_the_board_screen.dart';
 import 'package:lichess_mobile/src/view/settings/settings_screen.dart';
 import 'package:lichess_mobile/src/widgets/background.dart';
@@ -157,7 +158,7 @@ class MainTabScaffold extends ConsumerWidget {
         return _MaterialTabView(
           navigatorKey: playNavigatorKey,
           tab: BottomTab.play,
-          builder: (context) => const OverTheBoardScreen(),
+          builder: (context) => const RdChessHomeScreen(),
         );
       case 1:
         return _MaterialTabView(

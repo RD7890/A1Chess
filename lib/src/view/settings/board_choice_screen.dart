@@ -36,7 +36,7 @@ class _Body extends ConsumerWidget {
         .toList();
 
     void onChanged(BoardTheme? value) =>
-        ref.read(boardPreferencesProvider.notifier).setBoardTheme(value ?? BoardTheme.brown);
+        ref.read(boardPreferencesProvider.notifier).setBoardTheme(value ?? BoardTheme.green);
 
     const checkedIcon = Icon(Icons.check);
 

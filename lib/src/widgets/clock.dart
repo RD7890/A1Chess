@@ -23,6 +23,7 @@ class Clock extends StatelessWidget {
     this.clockTenths,
     this.padLeft = false,
     this.padding = const EdgeInsets.symmetric(vertical: 3.0, horizontal: 5.0),
+    this.fontSize,
     super.key,
   });
 
@@ -46,6 +47,9 @@ class Clock extends StatelessWidget {
 
   /// Padding around the clock.
   final EdgeInsets padding;
+
+  /// Override the base font size. Defaults to [_kClockFontSize] (26).
+  final double? fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +105,7 @@ class Clock extends StatelessWidget {
                                     : effectiveClockStyle.activeTextColor
                               : effectiveClockStyle.textColor
                         : effectiveClockStyle.emergencyTextColor,
-                    fontSize: _kClockFontSize * fontScaleFactor,
+                    fontSize: (fontSize ?? _kClockFontSize) * fontScaleFactor,
                     height: isShortVerticalScreen(context) ? 1.0 : null,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
@@ -109,12 +113,22 @@ class Clock extends StatelessWidget {
                     if (showTenths)
                       TextSpan(
                         text: '.${timeLeft.inMilliseconds.remainder(1000) ~/ 100}',
-                        style: TextStyle(fontSize: _kClockTenthFontSize * fontScaleFactor),
+                        style: TextStyle(
+                          fontSize: (fontSize != null
+                                  ? fontSize! * (_kClockTenthFontSize / _kClockFontSize)
+                                  : _kClockTenthFontSize) *
+                              fontScaleFactor,
+                        ),
                       ),
                     if (!active && timeLeft < const Duration(seconds: 1))
                       TextSpan(
                         text: '${timeLeft.inMilliseconds.remainder(1000) ~/ 10 % 10}',
-                        style: TextStyle(fontSize: _kClockHundredsFontSize * fontScaleFactor),
+                        style: TextStyle(
+                          fontSize: (fontSize != null
+                                  ? fontSize! * (_kClockHundredsFontSize / _kClockFontSize)
+                                  : _kClockHundredsFontSize) *
+                              fontScaleFactor,
+                        ),
                       ),
                   ],
                 ),
