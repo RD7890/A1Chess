@@ -11,6 +11,7 @@ import 'package:lichess_mobile/src/model/analysis/analysis_controller.dart';
 import 'package:lichess_mobile/src/model/common/chess.dart';
 import 'package:lichess_mobile/src/model/common/id.dart';
 import 'package:lichess_mobile/src/model/game/game_board_params.dart';
+import 'package:lichess_mobile/src/model/over_the_board/otb_engine_controller.dart';
 import 'package:lichess_mobile/src/model/over_the_board/over_the_board_clock.dart';
 import 'package:lichess_mobile/src/model/over_the_board/over_the_board_game_controller.dart';
 import 'package:lichess_mobile/src/model/over_the_board/over_the_board_game_storage.dart';
@@ -26,6 +27,7 @@ import 'package:lichess_mobile/src/view/analysis/analysis_screen.dart';
 import 'package:lichess_mobile/src/view/game/game_player.dart';
 import 'package:lichess_mobile/src/view/game/game_result_dialog.dart';
 import 'package:lichess_mobile/src/view/over_the_board/configure_over_the_board_game.dart';
+import 'package:lichess_mobile/src/view/over_the_board/otb_analysis_panel.dart';
 import 'package:lichess_mobile/src/widgets/adaptive_action_sheet.dart';
 import 'package:lichess_mobile/src/widgets/bottom_bar.dart';
 import 'package:lichess_mobile/src/widgets/buttons.dart';
@@ -36,10 +38,7 @@ import 'package:lichess_mobile/src/widgets/yes_no_dialog.dart';
 class OverTheBoardScreen extends StatelessWidget {
   const OverTheBoardScreen({this.initialFen, this.initialVariant, super.key});
 
-  /// Optional initial FEN to start the game from a custom position.
   final String? initialFen;
-
-  /// Initial variant to be preselected in the "New Game" dialog.
   final Variant? initialVariant;
 
   static Route<void> buildRoute({Variant? initialVariant, String? initialFen}) {
@@ -68,9 +67,7 @@ class OverTheBoardScreen extends StatelessWidget {
 
 class _Body extends ConsumerStatefulWidget {
   const _Body({required this.initialVariant, this.initialFen});
-
   final Variant initialVariant;
-
   final String? initialFen;
 
   @override
@@ -79,15 +76,12 @@ class _Body extends ConsumerStatefulWidget {
 
 class _BodyState extends ConsumerState<_Body> {
   final _boardKey = GlobalKey(debugLabel: 'boardOnOverTheBoardScreen');
-
   Side orientation = Side.white;
 
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // If we have an initial FEN, always show the new game dialog
       if (widget.initialFen != null) {
         if (!mounted) return;
         showConfigureGameSheet(
@@ -98,18 +92,14 @@ class _BodyState extends ConsumerState<_Body> {
         );
         return;
       }
-
       final ongoingGame = await ref.read(overTheBoardGameStorageProvider).fetchOngoingGame();
       if (ongoingGame != null && ongoingGame.game.steps.length > 1 && !ongoingGame.game.finished) {
         ref.read(overTheBoardGameControllerProvider.notifier).loadOngoingGame(ongoingGame.game);
-
-        ref
-            .read(overTheBoardClockProvider.notifier)
-            .setupClock(
-              ongoingGame.timeIncrement,
-              whiteTimeLeft: ongoingGame.whiteTimeLeft,
-              blackTimeLeft: ongoingGame.blackTimeLeft,
-            );
+        ref.read(overTheBoardClockProvider.notifier).setupClock(
+          ongoingGame.timeIncrement,
+          whiteTimeLeft: ongoingGame.whiteTimeLeft,
+          blackTimeLeft: ongoingGame.blackTimeLeft,
+        );
       } else {
         if (!mounted) return;
         showConfigureGameSheet(context, initialVariant: widget.initialVariant, isDismissible: true);
@@ -121,23 +111,22 @@ class _BodyState extends ConsumerState<_Body> {
     if (!context.mounted) return;
     final clockState = ref.read(overTheBoardClockProvider);
     final gameState = ref.read(overTheBoardGameControllerProvider);
-    ref
-        .read(overTheBoardGameStorageProvider)
-        .save(
-          gameState.game,
-          timeIncrement: clockState.timeIncrement,
-          whiteTimeLeft: clockState.whiteTimeLeft,
-          blackTimeLeft: clockState.blackTimeLeft,
-        );
+    ref.read(overTheBoardGameStorageProvider).save(
+      gameState.game,
+      timeIncrement: clockState.timeIncrement,
+      whiteTimeLeft: clockState.whiteTimeLeft,
+      blackTimeLeft: clockState.blackTimeLeft,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final gameState = ref.watch(overTheBoardGameControllerProvider);
     final overTheBoardPrefs = ref.watch(overTheBoardPreferencesProvider);
+    final engineState = ref.watch(otbEngineControllerProvider);
 
-    ref.listen(overTheBoardClockProvider.select((value) => value.flagSide), (previous, flagSide) {
-      if (previous == null && flagSide != null) {
+    ref.listen(overTheBoardClockProvider.select((v) => v.flagSide), (_, flagSide) {
+      if (flagSide != null) {
         ref.read(overTheBoardGameControllerProvider.notifier).onFlag(flagSide);
       }
     });
@@ -165,7 +154,6 @@ class _BodyState extends ConsumerState<_Body> {
           }
         });
       }
-
       if (previous?.game.isThreefoldRepetition == false &&
           newGameState.game.isThreefoldRepetition == true) {
         Timer(const Duration(milliseconds: 500), () {
@@ -195,33 +183,22 @@ class _BodyState extends ConsumerState<_Body> {
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) async {
-          if (didPop) {
-            return;
-          }
-
+          if (didPop) return;
           final navigator = Navigator.of(context);
           final game = gameState.game;
-          if (game.abortable || game.finished) {
-            return navigator.pop();
-          }
-
-          if (game.playable) {
-            ref.read(overTheBoardClockProvider.notifier).pause();
-          }
-
+          if (game.abortable || game.finished) return navigator.pop();
+          if (game.playable) ref.read(overTheBoardClockProvider.notifier).pause();
           final shouldPop = await showAdaptiveDialog<bool>(
             context: context,
-            builder: (context) {
-              return YesNoDialog(
-                title: Text(context.l10n.mobileAreYouSure),
-                content: const Text('No worries, your game will be saved.'),
-                onNo: () => Navigator.of(context).pop(false),
-                onYes: () {
-                  _saveGameState();
-                  Navigator.of(context).pop(true);
-                },
-              );
-            },
+            builder: (context) => YesNoDialog(
+              title: Text(context.l10n.mobileAreYouSure),
+              content: const Text('No worries, your game will be saved.'),
+              onNo: () => Navigator.of(context).pop(false),
+              onYes: () {
+                _saveGameState();
+                Navigator.of(context).pop(true);
+              },
+            ),
           );
           if (shouldPop == true) {
             navigator.pop();
@@ -235,8 +212,11 @@ class _BodyState extends ConsumerState<_Body> {
             children: [
               Expanded(
                 child: SafeArea(
+                  bottom: false,
                   child: GameLayout(
                     key: _boardKey,
+                    // Engine arrows shown on board
+                    shapes: engineState.isEnabled ? engineState.shapes : null,
                     topTable: _Player(
                       side: orientation.opposite,
                       clockKey: const ValueKey('topClock'),
@@ -267,8 +247,7 @@ class _BodyState extends ConsumerState<_Body> {
                       lastMove: gameState.lastMove,
                       onMove: (move, {viaDragAndDrop}) {
                         ref.read(overTheBoardGameControllerProvider.notifier).makeMove(move);
-                        ref
-                            .read(overTheBoardClockProvider.notifier)
+                        ref.read(overTheBoardClockProvider.notifier)
                             .onMove(newSideToMove: gameState.turn.opposite);
                       },
                     ),
@@ -285,14 +264,15 @@ class _BodyState extends ConsumerState<_Body> {
                       enablePremoves: false,
                     ),
                     userActionsBar: _BottomBar(
-                      onFlipBoard: () {
-                        setState(() {
-                          orientation = orientation.opposite;
-                        });
-                      },
+                      onFlipBoard: () => setState(() => orientation = orientation.opposite),
                     ),
                   ),
                 ),
+              ),
+              // Stockfish analysis panel
+              const SafeArea(
+                top: false,
+                child: OtbAnalysisPanel(),
               ),
             ],
           ),
@@ -302,24 +282,32 @@ class _BodyState extends ConsumerState<_Body> {
   }
 }
 
+// ── Bottom bar ───────────────────────────────────────────────────────────────
+
 class _BottomBar extends ConsumerWidget {
   const _BottomBar({required this.onFlipBoard});
-
   final VoidCallback onFlipBoard;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final gameState = ref.watch(overTheBoardGameControllerProvider);
     final clock = ref.watch(overTheBoardClockProvider);
+    final engineState = ref.watch(otbEngineControllerProvider);
+    final engineCtrl = ref.read(otbEngineControllerProvider.notifier);
 
     return BottomBar(
       children: [
         BottomBarButton(
           label: context.l10n.menu,
-          onTap: () {
-            _showOtbGameMenu(context, ref);
-          },
+          onTap: () => _showOtbGameMenu(context, ref),
           icon: Icons.menu,
+        ),
+        // Engine toggle button
+        BottomBarButton(
+          label: engineState.isEnabled ? 'Engine On' : 'Engine Off',
+          onTap: engineCtrl.toggleEnabled,
+          icon: engineState.isEnabled ? Icons.bolt : Icons.bolt_outlined,
+          highlighted: engineState.isEnabled,
         ),
         if (!clock.timeIncrement.isInfinite)
           BottomBarButton(
@@ -341,8 +329,7 @@ class _BottomBar extends ConsumerWidget {
               ? () {
                   ref.read(overTheBoardGameControllerProvider.notifier).goBack();
                   if (clock.active) {
-                    ref
-                        .read(overTheBoardClockProvider.notifier)
+                    ref.read(overTheBoardClockProvider.notifier)
                         .switchSide(newSideToMove: gameState.turn.opposite, addIncrement: false);
                   }
                 }
@@ -355,8 +342,7 @@ class _BottomBar extends ConsumerWidget {
               ? () {
                   ref.read(overTheBoardGameControllerProvider.notifier).goForward();
                   if (clock.active) {
-                    ref
-                        .read(overTheBoardClockProvider.notifier)
+                    ref.read(overTheBoardClockProvider.notifier)
                         .switchSide(newSideToMove: gameState.turn.opposite, addIncrement: false);
                   }
                 }
@@ -369,8 +355,7 @@ class _BottomBar extends ConsumerWidget {
               ? () {
                   ref.read(overTheBoardGameControllerProvider.notifier).goBack();
                   if (clock.active) {
-                    ref
-                        .read(overTheBoardClockProvider.notifier)
+                    ref.read(overTheBoardClockProvider.notifier)
                         .switchSide(newSideToMove: gameState.turn.opposite, addIncrement: false);
                   }
                 }
@@ -456,9 +441,10 @@ class _BottomBar extends ConsumerWidget {
   }
 }
 
+// ── Player widget ────────────────────────────────────────────────────────────
+
 class _Player extends ConsumerWidget {
   const _Player({required this.clockKey, required this.side});
-
   final Side side;
   final Key clockKey;
 
@@ -470,7 +456,6 @@ class _Player extends ConsumerWidget {
     final clockTenths = ref.watch(
       accountPreferencesProvider.select((prefs) => prefs.value?.clockTenths),
     );
-
     return GamePlayer(
       game: gameState.game,
       side: side,
