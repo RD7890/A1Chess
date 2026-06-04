@@ -2,7 +2,7 @@ name: lichess_mobile
 description: A1 Chess - A feature-rich mobile chess app (com.ryzix.rdchess)
 publish_to: "none"
 
-version: 0.24.3+002404
+version: 0.24.3+002405
 
 environment:
   sdk: ^3.11.5
