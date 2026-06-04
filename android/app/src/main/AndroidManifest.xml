@@ -7,7 +7,7 @@
         android:largeScreens="true"
         android:xlargeScreens="true"/>
     <application
-        android:label="Lichess"
+        android:label="A1 Chess"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -154,7 +154,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="org.lichess.mobile" android:host="login-callback" />
+                <data android:scheme="com.ryzix.rdchess" android:host="login-callback" />
             </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
