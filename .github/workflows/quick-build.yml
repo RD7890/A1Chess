@@ -11,7 +11,7 @@ jobs:
   build_apk:
     name: Build APK (arm64)
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -37,7 +37,7 @@ jobs:
           key: ${{ runner.os }}-pub-v1-${{ hashFiles('pubspec.lock') }}
           restore-keys: ${{ runner.os }}-pub-v1-
 
-      - name: Disable Firebase symbol upload (no credentials in CI)
+      - name: Disable Firebase symbol upload (no credentials needed)
         run: |
           {
             echo "com.google.firebase.crashlytics.mappingfileupload.enabled=false"
@@ -48,9 +48,10 @@ jobs:
         run: flutter pub get
 
       - name: Run code generation
-        run: dart run build_runner build --delete-conflicting-outputs
+        # No --delete-conflicting-outputs — repo ships pre-generated .freezed/.g files
+        run: dart run build_runner build
 
-      - name: Stage Stockfish 17.1 (arm64-v8a dotprod)
+      - name: Stage Stockfish 17.1 (arm64-v8a dotprod — high strength)
         run: |
           mkdir -p android/app/src/main/jniLibs/arm64-v8a /tmp/sf17-arm64
           curl -fsSL \
@@ -59,9 +60,9 @@ jobs:
           tar -xf /tmp/sf17-arm64.tar -C /tmp/sf17-arm64
           find /tmp/sf17-arm64 -name "stockfish-android-armv8-dotprod" -exec \
             cp {} android/app/src/main/jniLibs/arm64-v8a/libstockfish17.so \;
-          echo "SF17.1 staged: $(ls -lh android/app/src/main/jniLibs/arm64-v8a/libstockfish17.so)"
+          echo "SF17.1 staged → $(ls -lh android/app/src/main/jniLibs/arm64-v8a/libstockfish17.so)"
 
-      - name: Generate release signing keystore
+      - name: Generate signing keystore
         run: |
           keytool -genkey -v \
             -keystore android/app/keystore.jks \
@@ -85,10 +86,10 @@ jobs:
             --split-debug-info=build/debug-info/arm64
           cp build/app/outputs/flutter-apk/app-release.apk \
              build/app/outputs/flutter-apk/a1chess-arm64.apk
-          echo "════════════════════ Build Complete ════════════════════"
+          echo "════════ Build complete ════════"
           ls -lh build/app/outputs/flutter-apk/a1chess-arm64.apk
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: A1Chess-arm64-APK
