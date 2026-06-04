@@ -4,7 +4,6 @@ import java.io.FileInputStream
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
     id("com.google.firebase.crashlytics")
@@ -18,15 +17,10 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.ryzix.rdchess"
-    // compileSdk = flutter.compileSdkVersion
-    // home_widget pulls in glance-appwidget and remote-creation-android, both of which
-    // declare in their AAR metadata that all dependents (including the app) must compile
-    // against SDK 37+. This cannot be suppressed — it is enforced by AGP at build time.
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // Flag required by flutter_local_notifications package
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -37,17 +31,15 @@ android {
     }
 
     defaultConfig {
-        // Flag required by flutter_local_notifications package
         multiDexEnabled = true
         applicationId = "com.ryzix.rdchess"
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Used by flutter_appauth plugin
         manifestPlaceholders["appAuthRedirectScheme"] = "com.ryzix.rdchess"
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
@@ -69,9 +61,7 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
-            ndk {
-                debugSymbolLevel = "FULL"
-            }
+            // No debugSymbolLevel — removes ~100MB from APK
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -89,7 +79,6 @@ flutter {
 }
 
 dependencies {
-    // Dependency required by flutter_local_notifications package
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.core:core-splashscreen:1.0.1")
 }
