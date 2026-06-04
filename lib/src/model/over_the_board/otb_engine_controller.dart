@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
-import 'package:flutter/material.dart';
+import 'dart:ui' show Color;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lichess_mobile/src/model/common/eval.dart';
 import 'package:lichess_mobile/src/model/common/id.dart';
@@ -184,7 +184,7 @@ class OtbEngineController extends Notifier<OtbEngineState> {
     final steps = gs.game.steps
         .skip(1)
         .take(gs.stepCursor)
-        .map((s) => Step(position: s.position, sanMove: s.sanMove!))
+        .map<Step>((s) => Step(position: s.position, sanMove: s.sanMove!))
         .toIList();
 
     final work = EvalWork(
