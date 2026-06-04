@@ -71,7 +71,7 @@ class _WatchScreenState extends ConsumerState<WatchTabScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen<BottomTab>(currentBottomTabProvider, (prev, current) {
-      if (prev != BottomTab.watch && current == BottomTab.watch) {
+      if (prev != BottomTab.play && current == BottomTab.play) {
         ref.invalidate(broadcastsPaginatorProvider);
         ref.invalidate(featuredChannelsProvider);
         if (!(ref.read(kidModeProvider).value ?? false)) {
@@ -85,7 +85,7 @@ class _WatchScreenState extends ConsumerState<WatchTabScreen> {
       canPop: false,
       onPopInvokedWithResult: (bool didPop, _) {
         if (!didPop) {
-          ref.read(currentBottomTabProvider.notifier).state = BottomTab.home;
+          ref.read(currentBottomTabProvider.notifier).state = BottomTab.play;
         }
       },
       child: PlatformScaffold(
