@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lichess_mobile/src/model/common/eval.dart';
 import 'package:lichess_mobile/src/model/common/id.dart';
 import 'package:lichess_mobile/src/model/engine/engine.dart';
 import 'package:lichess_mobile/src/model/engine/evaluation_service.dart';
@@ -34,33 +37,39 @@ class OtbEngineState {
     bool? isEnabled,
     bool? isPanelVisible,
     bool? isThinking,
-  }) => OtbEngineState(
-    currentEval:    currentEval    != null ? currentEval()    : this.currentEval,
-    lastMoveGrade:  lastMoveGrade  != null ? lastMoveGrade()  : this.lastMoveGrade,
-    isEnabled:      isEnabled      ?? this.isEnabled,
-    isPanelVisible: isPanelVisible ?? this.isPanelVisible,
-    isThinking:     isThinking     ?? this.isThinking,
-  );
+  }) =>
+      OtbEngineState(
+        currentEval: currentEval != null ? currentEval() : this.currentEval,
+        lastMoveGrade: lastMoveGrade != null ? lastMoveGrade() : this.lastMoveGrade,
+        isEnabled: isEnabled ?? this.isEnabled,
+        isPanelVisible: isPanelVisible ?? this.isPanelVisible,
+        isThinking: isThinking ?? this.isThinking,
+      );
 
-  /// Arrow shapes derived from top engine PVs.
+  /// Arrow shapes derived from top engine PVs (green → orange → red).
   ISet<Shape> get shapes {
     final eval = currentEval;
     if (eval == null || !isEnabled) return ISet();
-    const brushColors = [0xFF2ECC40, 0xFFFF9F1A, 0xFFE74C3C];
+    const brushColors = [Color(0xFF2ECC40), Color(0xFFFF9F1A), Color(0xFFE74C3C)];
     final arrows = <Shape>[];
     for (var i = 0; i < min(3, eval.pvs.length); i++) {
       final pv = eval.pvs[i];
       if (pv.moves.isEmpty) continue;
       final move = Move.parse(pv.moves[0]);
       if (move == null) continue;
-      arrows.add(
-        Arrow(
-          orig: move.from,
-          dest: move.to,
-          scale: i == 0 ? 1.0 : 0.85,
-          color: Color(brushColors[i]),
-        ),
-      );
+      switch (move) {
+        case NormalMove(:final from, :final to):
+          arrows.add(
+            Arrow(
+              orig: from,
+              dest: to,
+              scale: i == 0 ? 1.0 : 0.82,
+              color: brushColors[i],
+            ),
+          );
+        default:
+          break;
+      }
     }
     return ISet(arrows);
   }
@@ -72,14 +81,23 @@ final otbEngineControllerProvider =
   name: 'OtbEngineControllerProvider',
 );
 
-class OtbEngineController extends AutoDisposeNotifier<OtbEngineState> {
+class OtbEngineController extends Notifier<OtbEngineState> {
   StreamSubscription<EvalResult>? _evalSub;
   LocalEval? _preMoveEval;
   int _lastCursor = -1;
 
   @override
   OtbEngineState build() {
-    ref.onDispose(_dispose);
+    // Capture service reference early so dispose closure doesn't need ref.
+    final evaluationService = ref.read(evaluationServiceProvider);
+
+    ref.onDispose(() {
+      _evalSub?.cancel();
+      _evalSub = null;
+      try {
+        evaluationService.stop();
+      } catch (_) {}
+    });
 
     ref.listen(overTheBoardGameControllerProvider, (prev, next) {
       if (state.isEnabled && next.stepCursor != _lastCursor) {
@@ -88,41 +106,50 @@ class OtbEngineController extends AutoDisposeNotifier<OtbEngineState> {
       }
     });
 
-    // Evaluate the starting position
-    final gameState = ref.read(overTheBoardGameControllerProvider);
-    if (!gameState.finished) {
-      Future.microtask(() => _startEvalStream(gameState, null, null));
-    }
+    // Kick off evaluation of the starting position after the first frame.
+    Future.microtask(() {
+      if (!ref.mounted) return;
+      final gs = ref.read(overTheBoardGameControllerProvider);
+      if (state.isEnabled && !gs.finished) {
+        _startEvalStream(gs, null, null);
+      }
+    });
 
     return const OtbEngineState();
   }
+
+  // ── Public API ──────────────────────────────────────────────────────────────
 
   void toggleEnabled() {
     final enabled = !state.isEnabled;
     state = state.copyWith(isEnabled: enabled);
     if (!enabled) {
-      _dispose();
+      _cancelEval();
     } else {
       final gs = ref.read(overTheBoardGameControllerProvider);
       _startEvalStream(gs, null, null);
     }
   }
 
-  void togglePanel() =>
-      state = state.copyWith(isPanelVisible: !state.isPanelVisible);
+  void togglePanel() {
+    state = state.copyWith(isPanelVisible: !state.isPanelVisible);
+  }
 
-  // ── internals ────────────────────────────────────────────────────────────
+  // ── Internals ───────────────────────────────────────────────────────────────
 
-  void _dispose() {
+  void _cancelEval() {
     _evalSub?.cancel();
     _evalSub = null;
-    try { ref.read(evaluationServiceProvider).stop(); } catch (_) {}
+    try {
+      ref.read(evaluationServiceProvider).stop();
+    } catch (_) {}
   }
 
   void _onPositionChanged(
     OverTheBoardGameState? prev,
     OverTheBoardGameState next,
   ) {
+    // Snapshot pre-move context before resetting.
     final preMoveEval = _preMoveEval;
     final prevTurn = prev?.turn;
     final playedUci = next.stepCursor > 0
@@ -130,7 +157,6 @@ class OtbEngineController extends AutoDisposeNotifier<OtbEngineState> {
         : null;
     final bestUci = preMoveEval?.pvs.firstOrNull?.moves.firstOrNull;
 
-    // Cancel previous stream before starting new one
     _evalSub?.cancel();
     _evalSub = null;
     _preMoveEval = null;
@@ -154,7 +180,7 @@ class OtbEngineController extends AutoDisposeNotifier<OtbEngineState> {
   ]) {
     final variant = gs.game.meta.variant;
 
-    // Build steps list (skip the initial position which has no sanMove)
+    // Steps: skip the initial position (no sanMove) and take up to current cursor.
     final steps = gs.game.steps
         .skip(1)
         .take(gs.stepCursor)
@@ -164,7 +190,7 @@ class OtbEngineController extends AutoDisposeNotifier<OtbEngineState> {
     final work = EvalWork(
       id: gs.game.id,
       stockfishFlavor: officialStockfishVariants.contains(variant)
-          ? StockfishFlavor.standard
+          ? StockfishFlavor.latestNoNNUE
           : StockfishFlavor.variant,
       variant: variant,
       threads: maxEngineCores,
@@ -186,7 +212,7 @@ class OtbEngineController extends AutoDisposeNotifier<OtbEngineState> {
     _evalSub = stream.listen((result) {
       final (_, eval) = result;
 
-      // Grade the move once we have a reasonable depth
+      // Grade the move once we have a decent search depth.
       if (!graded && preMoveEval != null && prevTurn != null && eval.depth >= 10) {
         graded = true;
         _gradeMove(preMoveEval, eval, prevTurn, playedUci ?? '', bestUci ?? '');
@@ -207,19 +233,19 @@ class OtbEngineController extends AutoDisposeNotifier<OtbEngineState> {
     String playedUci,
     String bestUci,
   ) {
-    // cp is from white's POV; normalise to the player's POV
+    // Normalise centipawns to the POV of the side that just moved.
     int cpFromPov(int? cp, int? mate, Side side) {
       if (mate != null) return (mate > 0 ? 32000 : -32000) * (side == Side.white ? 1 : -1);
       if (cp == null) return 0;
       return side == Side.white ? cp : -cp;
     }
 
-    final preCp  = cpFromPov(preMoveEval.cp,  preMoveEval.mate,  sideBeforeMove);
+    final preCp = cpFromPov(preMoveEval.cp, preMoveEval.mate, sideBeforeMove);
     final postCp = cpFromPov(postMoveEval.cp, postMoveEval.mate, sideBeforeMove);
 
-    // After the move it's the opponent's turn: opponent's advantage = player's loss.
-    // cpGain = how much the position improved FOR the player who just moved.
-    final cpGain = postCp - preCp; // negative = player made a mistake
+    // Positive cpGain = player improved the position (great/brilliant).
+    // Negative cpGain = player lost centipawns (mistake/blunder).
+    final cpGain = postCp - preCp;
 
     state = state.copyWith(
       lastMoveGrade: () => MoveGradeResult(
