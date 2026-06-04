@@ -1,5 +1,5 @@
-name: lichess_mobile
-description: Lichess mobile app V2
+name: a1_chess
+description: A1 Chess - A premium chess app powered by Lichess
 publish_to: "none"
 
 version: 0.24.3+002403 # See README.md for details about versioning
