@@ -1,60 +1,111 @@
-# Lichess Mobile
+# A1 Chess
 
-Second iteration of the [Lichess mobile app](https://lichess.org/mobile).
+A premium, open-source chess app for Android and iOS — built on the powerful [Lichess](https://lichess.org) platform.
 
-## How to contribute
+**Package:** `com.ryzix.rdchess`
 
-Contributions to this project are welcome!
+---
 
-If you want to contribute, please read the [contributing guide](./CONTRIBUTING.md).
+## Features
 
-If you are new to this project, you can [read the documentation](./docs) to get
-started. The [CLAUDE.md](./CLAUDE.md) is also a good resource to understand the
-codebase.
+- ♟ Play online against millions of players worldwide
+- 🤖 Challenge Stockfish (the world's strongest chess engine) at any level
+- 📊 Deep game analysis with engine evaluation
+- 🎯 Puzzles & tactics training — thousands updated daily
+- 📖 Opening explorer with comprehensive databases
+- 🏆 Tournaments — join or create your own
+- 🎓 Study tools & interactive lessons
+- 🌐 Supports all Lichess time controls: Bullet, Blitz, Rapid, Classical, Correspondence
+- 🔔 Push notifications for game events and challenges
+- 🌙 Dark mode & theming support
+- 📡 Offline puzzle solving
 
-## Setup
+---
 
-tl;dr: Install Flutter, clone the repo, run in order:
-- `flutter pub get`
-- `dart run build_runner watch`
-- `flutter analyze --watch`,
+## Getting Started
 
-and you're ready to code!
+### Prerequisites
 
-See [the dev environment docs](./docs/setting_dev_env.md) for detailed instructions.
+- [Flutter SDK](https://flutter.dev/docs/get-started/install) (see `pubspec.yaml` for required version)
+- Android Studio / Xcode for device targets
 
-## Running the app
-
-To run the app, you can use the following command:
+### Setup
 
 ```bash
-# if not already done, run the code generation
+# Clone the repo
+git clone https://github.com/RD7890/A1Chess.git
+cd A1Chess
+
+# Install dependencies
+flutter pub get
+
+# Run code generation
 dart run build_runner build
 
-# run the app on all available devices
-flutter run -d all
+# Start development watcher
+dart run build_runner watch
 ```
 
-## Running tests
-
-To run the tests, you can use the following command:
+### Run the App
 
 ```bash
-# if not already done, run the code generation
-dart run build_runner build
+# Run on all available devices
+flutter run -d all
 
+# Run on a specific device
+flutter run -d <device-id>
+```
+
+### Run Tests
+
+```bash
+dart run build_runner build
 flutter test
 ```
 
-## Internationalisation
+---
 
-Do not edit the `app_en.arb` file by hand, this file is generated.
-For more information, see [Internationalisation](./docs/internationalisation.md).
+## Project Structure
 
-## Releasing
+```
+lib/           # Main Dart source code
+assets/        # Images, fonts, and static assets
+android/       # Android-specific configuration
+ios/           # iOS-specific configuration
+test/          # Unit and widget tests
+docs/          # Developer documentation
+```
 
-Only for members of lichess team.
+---
 
-1. Bump the pubspec.yaml version number. This can be in a PR making a change or a separate PR. Use semantic versioning to determine which part to increment. The version number after the + should also be incremented. For example 0.3.3+000303 with a patch should become 0.3.4+000304.
-2. Run workflow [Deploy to Play Store](https://github.com/lichess-org/mobile/actions/workflows/deploy_play_store.yml)
-3. [Publish on F-Droid](./docs/publish_fdroid.md)
+## Configuration
+
+| Setting | Value |
+|---|---|
+| Android Package | `com.ryzix.rdchess` |
+| iOS Bundle ID | `com.ryzix.rdchess` |
+| Flutter app name | `a1_chess` |
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) before submitting a PR.
+
+---
+
+## Versioning
+
+This project follows semantic versioning. The `pubspec.yaml` version field contains both the semantic version and the build number (e.g. `1.0.0+100`).
+
+---
+
+## License
+
+This project is licensed under the terms in [LICENSE](./LICENSE). Original work by the [Lichess](https://lichess.org) team — used and modified under open-source license.
+
+---
+
+## Acknowledgements
+
+Built on the incredible open-source work of the [Lichess organization](https://github.com/lichess-org). Special thanks to all contributors.
