@@ -1,178 +1,203 @@
 name: "A1 Chess — Compile › Sign › Release"
 
-on:
-  push:
-    branches:
-      - main
-      - "release/**"
-    paths-ignore:
-      - "**.md"
-      - ".github/workflows/crowdin*.yml"
-      - "fastlane/**"
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - "**.md"
-  workflow_dispatch:
-    inputs:
-      release_type:
-        description: "Release type"
-        required: true
-        default: "prerelease"
-        type: choice
-        options: [prerelease, release]
+  on:
+    push:
+      branches:
+        - main
+        - "release/**"
+      paths-ignore:
+        - "**.md"
+        - ".github/workflows/crowdin*.yml"
+        - "fastlane/**"
+    pull_request:
+      branches: [main]
+      paths-ignore:
+        - "**.md"
+    workflow_dispatch:
+      inputs:
+        release_type:
+          description: "Release type"
+          required: true
+          default: "prerelease"
+          type: choice
+          options: [prerelease, release]
 
-permissions:
-  contents: write
+  permissions:
+    contents: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
-jobs:
-  build_release:
-    name: "Compile › Sign › Release"
-    runs-on: ubuntu-latest
+  jobs:
+    build_release:
+      name: "Compile › Sign › Release"
+      runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: "17"
-          distribution: temurin
-          cache: gradle
+        - name: Set up JDK 17
+          uses: actions/setup-java@v4
+          with:
+            java-version: "17"
+            distribution: temurin
+            cache: gradle
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version-file: pubspec.yaml
-          cache: true
+        - name: Set up Flutter
+          uses: subosito/flutter-action@v2
+          with:
+            channel: stable
+            flutter-version-file: pubspec.yaml
+            cache: true
 
-      - name: Cache pub packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.pub-cache
-          key: ${{ runner.os }}-pub-v1-${{ hashFiles('pubspec.lock') }}
-          restore-keys: ${{ runner.os }}-pub-v1-
+        - name: Cache pub packages
+          uses: actions/cache@v4
+          with:
+            path: ~/.pub-cache
+            key: ${{ runner.os }}-pub-v1-${{ hashFiles('pubspec.lock') }}
+            restore-keys: ${{ runner.os }}-pub-v1-
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-v2-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-v2-
+        - name: Cache Gradle
+          uses: actions/cache@v4
+          with:
+            path: |
+              ~/.gradle/caches
+              ~/.gradle/wrapper
+            key: ${{ runner.os }}-gradle-v2-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            restore-keys: ${{ runner.os }}-gradle-v2-
 
-      - name: Install pub dependencies
-        run: flutter pub get
+        - name: Disable Firebase symbol upload
+          run: |
+            {
+              echo "com.google.firebase.crashlytics.mappingfileupload.enabled=false"
+              echo "com.google.firebase.crashlytics.unstrippednativelibs.enabled=false"
+            } >> android/gradle.properties
 
-      - name: Run code generation
-        run: dart run build_runner build --delete-conflicting-outputs
+        - name: Install pub dependencies
+          run: flutter pub get
 
-      - name: Stage Stockfish 17.1 Android binaries
-        run: |
-          mkdir -p android/app/src/main/jniLibs/arm64-v8a
-          mkdir -p /tmp/sf17-arm64
-          curl -fsSL \
-            "https://github.com/official-stockfish/Stockfish/releases/download/sf_17.1/stockfish-android-armv8-dotprod.tar" \
-            -o /tmp/sf17-arm64.tar
-          tar -xf /tmp/sf17-arm64.tar -C /tmp/sf17-arm64
-          find /tmp/sf17-arm64 -name "stockfish-android-armv8-dotprod" -exec \
-            cp {} android/app/src/main/jniLibs/arm64-v8a/libstockfish17.so \;
-          mkdir -p android/app/src/main/jniLibs/armeabi-v7a
-          mkdir -p /tmp/sf17-arm
-          curl -fsSL \
-            "https://github.com/official-stockfish/Stockfish/releases/download/sf_17.1/stockfish-android-armv7-neon.tar" \
-            -o /tmp/sf17-arm.tar
-          tar -xf /tmp/sf17-arm.tar -C /tmp/sf17-arm
-          find /tmp/sf17-arm -name "stockfish-android-armv7-neon" -exec \
-            cp {} android/app/src/main/jniLibs/armeabi-v7a/libstockfish17.so \;
-          echo "═══════════════ Stockfish 17.1 Sizes ═══════════════"
-          ls -lh android/app/src/main/jniLibs/arm64-v8a/libstockfish17.so
-          ls -lh android/app/src/main/jniLibs/armeabi-v7a/libstockfish17.so
+        - name: Run code generation
+          run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Generate signing keystore
-        run: |
-          keytool -genkey -v \
-            -keystore android/app/keystore.jks \
-            -storetype JKS \
-            -alias a1chess \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass a1chess2024 -keypass a1chess2024 \
-            -dname "CN=A1Chess,OU=Mobile,O=Ryzix,L=City,ST=State,C=US"
-          {
-            echo "storeFile=keystore.jks"
-            echo "storePassword=a1chess2024"
-            echo "keyAlias=a1chess"
-            echo "keyPassword=a1chess2024"
-          } > android/key.properties
+        - name: Strip Flutter engine debug symbols (pre-build)
+          run: |
+            LLVM_STRIP=$(find "$ANDROID_NDK_HOME" -name "llvm-strip" 2>/dev/null | head -1)
+            echo "Strip tool: $LLVM_STRIP"
+            # Strip libflutter.so from Flutter engine cache (arm64 release)
+            find /opt/hostedtoolcache/flutter ~/.pub-cache -name "libflutter.so" 2>/dev/null | while read f; do
+              BEFORE=$(du -sh "$f" | cut -f1)
+              "$LLVM_STRIP" --strip-debug "$f" 2>/dev/null || true
+              AFTER=$(du -sh "$f" | cut -f1)
+              echo "  $f: $BEFORE → $AFTER"
+            done
 
-      - name: Extract version from pubspec
-        id: version
-        run: |
-          VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
-          echo "name=$VER" >> "$GITHUB_OUTPUT"
-          echo "Version → $VER (Build #${{ github.run_number }})"
+        - name: Generate signing keystore
+          run: |
+            keytool -genkey -v \
+              -keystore android/app/keystore.jks \
+              -storetype JKS \
+              -alias a1chess \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass a1chess2024 -keypass a1chess2024 \
+              -dname "CN=A1Chess,OU=Mobile,O=Ryzix,L=City,ST=State,C=US"
+            {
+              echo "storeFile=keystore.jks"
+              echo "storePassword=a1chess2024"
+              echo "keyAlias=a1chess"
+              echo "keyPassword=a1chess2024"
+            } > android/key.properties
 
-      - name: Build arm64-v8a APK (primary)
-        run: |
-          flutter build apk --release \
-            --target-platform android-arm64 \
-            --obfuscate \
-            --split-debug-info=build/debug-info/arm64
-          cp build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/a1chess-v${{ steps.version.outputs.name }}-arm64.apk
+        - name: Extract version from pubspec
+          id: version
+          run: |
+            VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+            echo "name=$VER" >> "$GITHUB_OUTPUT"
+            echo "Version → $VER (Build #${{ github.run_number }})"
 
-      - name: Build armeabi-v7a APK (legacy)
-        run: |
-          flutter build apk --release \
-            --target-platform android-arm \
-            --obfuscate \
-            --split-debug-info=build/debug-info/arm
-          cp build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/a1chess-v${{ steps.version.outputs.name }}-arm.apk
+        - name: Build arm64-v8a APK
+          run: |
+            flutter build apk --release \
+              --target-platform android-arm64 \
+              --obfuscate \
+              --split-debug-info=build/debug-info/arm64
 
-      - name: APK size report
-        run: |
-          echo "═══════════════ A1 Chess APK Size Report ═══════════════"
-          ls -lh build/app/outputs/flutter-apk/a1chess-*.apk
+        - name: Strip + re-sign APK (remove residual DWARF)
+          run: |
+            LLVM_STRIP=$(find "$ANDROID_NDK_HOME" -name "llvm-strip" 2>/dev/null | head -1)
+            BUILD_TOOLS=$(ls -d "$ANDROID_SDK_ROOT/build-tools/"* 2>/dev/null | sort -V | tail -1)
+            ZIPALIGN="$BUILD_TOOLS/zipalign"
+            APKSIGNER="$BUILD_TOOLS/apksigner"
+            APK="build/app/outputs/flutter-apk/app-release.apk"
+            TMP="/tmp/strip_apk"
 
-      - name: Create GitHub Release
-        if: github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.name }}-build.${{ github.run_number }}
-          name: "A1 Chess v${{ steps.version.outputs.name }} (Build #${{ github.run_number }})"
-          body: |
-            ## A1 Chess v${{ steps.version.outputs.name }}
+            echo "Tools: strip=$LLVM_STRIP zipalign=$ZIPALIGN apksigner=$APKSIGNER"
+            echo "Before strip: $(du -sh $APK | cut -f1)"
 
-            > Automated release — R8 full-mode minified · obfuscated · ABI-split
+            mkdir -p "$TMP/work"
+            unzip -q "$APK" -d "$TMP/work"
 
-            ### Downloads
+            # Strip debug symbols from all native libs
+            find "$TMP/work/lib" -name "*.so" -print0 | \
+              xargs -0 "$LLVM_STRIP" --strip-debug 2>/dev/null || true
 
-            | APK | Target | Notes |
-            |-----|--------|-------|
-            | `a1chess-*-arm64.apk` | arm64-v8a | ✅ **Recommended** — all phones 2016+ |
-            | `a1chess-*-arm.apk`   | armeabi-v7a | Legacy 32-bit devices |
+            # Remove old APK signature
+            rm -rf "$TMP/work/META-INF"
 
-            ### Engine
-            - **Stockfish 17.1** bundled as native library
-            - `arm64-v8a` → `armv8-dotprod` (highest strength SIMD)
-            - `armeabi-v7a` → `armv7-neon` (32-bit fallback)
+            # Repack: native libs stored uncompressed, everything else compressed
+            cd "$TMP/work"
+            zip -r0 "$TMP/unsigned.apk" lib/
+            zip -r9 "$TMP/unsigned.apk" assets/ res/ kotlin/ 2>/dev/null || true
+            find . -maxdepth 1 -name "*.dex" -o -name "AndroidManifest.xml" -o -name "resources.arsc" | \
+              xargs zip -9 "$TMP/unsigned.apk" 2>/dev/null || true
 
-            ### Build info
-            - **Branch:** `${{ github.ref_name }}`
-            - **Commit:** `${{ github.sha }}`
-          draft: false
-          prerelease: ${{ github.event.inputs.release_type != 'release' }}
-          files: build/app/outputs/flutter-apk/a1chess-*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Page-align native libs (4096 bytes)
+            "$ZIPALIGN" -f -p 4096 "$TMP/unsigned.apk" "$TMP/aligned.apk"
 
+            # Re-sign
+            "$APKSIGNER" sign \
+              --ks "$GITHUB_WORKSPACE/android/app/keystore.jks" \
+              --ks-pass pass:a1chess2024 \
+              --key-pass pass:a1chess2024 \
+              --out "$GITHUB_WORKSPACE/$APK" \
+              "$TMP/aligned.apk"
+
+            echo "After strip: $(du -sh "$GITHUB_WORKSPACE/$APK" | cut -f1)"
+
+        - name: Rename and report APK size
+          id: apkname
+          run: |
+            VER=${{ steps.version.outputs.name }}
+            cp build/app/outputs/flutter-apk/app-release.apk \
+               build/app/outputs/flutter-apk/a1chess-v${VER}-arm64.apk
+            echo "════════ Final APK size ════════"
+            ls -lh build/app/outputs/flutter-apk/a1chess-v${VER}-arm64.apk
+
+        - name: Create GitHub Release
+          if: github.event_name != 'pull_request'
+          uses: softprops/action-gh-release@v2
+          with:
+            tag_name: v${{ steps.version.outputs.name }}-build.${{ github.run_number }}
+            name: "A1 Chess v${{ steps.version.outputs.name }} (Build #${{ github.run_number }})"
+            body: |
+              ## A1 Chess v${{ steps.version.outputs.name }}
+
+              > arm64-v8a only · R8 minified · obfuscated · Stockfish via multistockfish
+
+              ### Download
+              | APK | Arch | Notes |
+              |-----|------|-------|
+              | `a1chess-*-arm64.apk` | arm64-v8a | ✅ All Android phones 2016+ |
+
+              ### Build info
+              - **Branch:** `${{ github.ref_name }}`
+              - **Commit:** `${{ github.sha }}`
+            draft: false
+            prerelease: ${{ github.event.inputs.release_type != 'release' }}
+            files: build/app/outputs/flutter-apk/a1chess-*.apk
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
