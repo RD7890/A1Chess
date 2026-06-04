@@ -149,10 +149,14 @@ jobs:
           cd "$TMP/work"
           zip -r0 "$TMP/unsigned.apk" lib/
           zip -r9 "$TMP/unsigned.apk" assets/ res/ kotlin/ 2>/dev/null || true
-          find . -maxdepth 1 -name "*.dex" -o -name "AndroidManifest.xml" -o -name "resources.arsc" | \
+          find . -maxdepth 1 \( -name "*.dex" -o -name "AndroidManifest.xml" \) | \
             xargs zip -9 "$TMP/unsigned.apk" 2>/dev/null || true
+          # resources.arsc MUST be stored uncompressed on Android R+ (API 30+)
+          # Compressing it causes error -124 / INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION
+          find . -maxdepth 1 -name "resources.arsc" | \
+            xargs zip -0 "$TMP/unsigned.apk" 2>/dev/null || true
 
-          # Page-align native libs (4096 bytes)
+          # Page-align native libs (4096 bytes); zipalign also 4-byte aligns everything else
           "$ZIPALIGN" -f -p 4096 "$TMP/unsigned.apk" "$TMP/aligned.apk"
 
           # Re-sign
