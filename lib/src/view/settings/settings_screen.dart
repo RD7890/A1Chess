@@ -13,7 +13,6 @@ import 'package:lichess_mobile/src/styles/styles.dart';
 import 'package:lichess_mobile/src/utils/l10n.dart';
 import 'package:lichess_mobile/src/utils/l10n_context.dart';
 import 'package:lichess_mobile/src/utils/navigation.dart';
-import 'package:lichess_mobile/src/view/home/home_tab_screen.dart';
 import 'package:lichess_mobile/src/view/settings/account_preferences_screen.dart';
 import 'package:lichess_mobile/src/view/settings/app_log_settings_screen.dart';
 import 'package:lichess_mobile/src/view/settings/board_settings_screen.dart';
@@ -106,16 +105,6 @@ class SettingsScreen extends ConsumerWidget {
                     : null,
                 onTap: () {
                   Navigator.of(context).push(ThemeSettingsScreen.buildRoute());
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.app_registration),
-                title: Text(context.l10n.mobileSettingsHomeWidgets),
-                trailing: Theme.of(context).platform == TargetPlatform.iOS
-                    ? const CupertinoListTileChevron()
-                    : null,
-                onTap: () {
-                  Navigator.of(context).push(HomeTabScreen.buildRoute(editModeEnabled: true));
                 },
               ),
               ListTile(
