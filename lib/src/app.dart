@@ -1,44 +1,17 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:home_widget/home_widget.dart';
 import 'package:l10n_esperanto/l10n_esperanto.dart';
 import 'package:lichess_mobile/l10n/l10n.dart';
-import 'package:lichess_mobile/src/app_links_service.dart';
 import 'package:lichess_mobile/src/binding.dart';
-import 'package:lichess_mobile/src/constants.dart';
-import 'package:lichess_mobile/src/model/account/account_repository.dart';
-import 'package:lichess_mobile/src/model/account/account_service.dart';
-import 'package:lichess_mobile/src/model/account/ongoing_game.dart';
 import 'package:lichess_mobile/src/model/analysis/analysis_preferences.dart';
-import 'package:lichess_mobile/src/model/announce/announce_service.dart';
-import 'package:lichess_mobile/src/model/broadcast/broadcast_preferences.dart';
-import 'package:lichess_mobile/src/model/challenge/challenge_service.dart';
 import 'package:lichess_mobile/src/model/common/preloaded_data.dart';
-import 'package:lichess_mobile/src/model/correspondence/correspondence_service.dart';
 import 'package:lichess_mobile/src/model/log/app_log_service.dart';
-import 'package:lichess_mobile/src/model/message/message_service.dart';
-import 'package:lichess_mobile/src/model/notifications/notification_service.dart';
 import 'package:lichess_mobile/src/model/settings/board_preferences.dart';
 import 'package:lichess_mobile/src/model/settings/general_preferences.dart';
-import 'package:lichess_mobile/src/model/study/study_preferences.dart';
-import 'package:lichess_mobile/src/network/connectivity.dart';
-import 'package:lichess_mobile/src/network/socket.dart';
-import 'package:lichess_mobile/src/quick_actions.dart';
-import 'package:lichess_mobile/src/shared_pgn_service.dart';
 import 'package:lichess_mobile/src/tab_scaffold.dart';
 import 'package:lichess_mobile/src/theme.dart';
 import 'package:lichess_mobile/src/utils/screen.dart';
-
-const String _kIosAppGroupId = 'group.org.lichess.mobileV2.LichessWidgets';
-const List<String> _kIosBlogWidgetKinds = [
-  'OfficialBlogWidget',
-  'CommunityBlogWidget',
-  'UserBlogFeedWidget',
-];
 
 /// Application initialization and main entry point.
 class AppInitializationScreen extends ConsumerWidget {
@@ -59,16 +32,12 @@ class AppInitializationScreen extends ConsumerWidget {
         debugPrint('SEVERE: [App] could not initialize app; $error\n$stackTrace');
         return const SizedBox.shrink();
       case _:
-        // loading screen is handled by the native splash screen
         return const SizedBox.shrink();
     }
   }
 }
 
 /// The main application widget.
-///
-/// This widget is the root of the application and is responsible for setting up
-/// the theme, locale, and other global settings.
 class Application extends ConsumerStatefulWidget {
   const Application({super.key});
 
@@ -77,14 +46,9 @@ class Application extends ConsumerStatefulWidget {
 }
 
 class _AppState extends ConsumerState<Application> {
-  /// Whether the app has checked for online status for the first time.
-  bool _firstTimeOnlineCheck = false;
   final _navigatorKey = GlobalKey<NavigatorState>();
 
-  // Adjusts some settings for small screens based on the MediaQuery data.
   Future<void> _screenSizeBasedInitialization(WidgetRef ref) async {
-    // Bump version here in case we adjust the thresholds for screen size based initialization
-    // and want it to run again for users who already launched the app with a previous version.
     const kDoneScreenSizeInitKey = 'done_screen_size_init_v1';
 
     final prefs = LichessBinding.instance.sharedPreferences;
@@ -100,9 +64,6 @@ class _AppState extends ConsumerState<Application> {
     final showEngineLines =
         isTablet || estimateHeightMinusBoard(mediaQueryData) > kSmallHeightMinusBoard - 30;
 
-    // For tablets in portrait mode using the full board size makes the bottom analysis tabs tiny,
-    // see https://github.com/lichess-org/mobile/issues/3150,
-    // so use a small board there by default as well.
     final smallBoard = isTablet || isSmallScreen;
 
     await ref
@@ -110,20 +71,6 @@ class _AppState extends ConsumerState<Application> {
         .save(
           ref
               .read(analysisPreferencesProvider)
-              .copyWith(smallBoard: smallBoard, showEngineLines: showEngineLines),
-        );
-    await ref
-        .read(studyPreferencesProvider.notifier)
-        .save(
-          ref
-              .read(studyPreferencesProvider)
-              .copyWith(smallBoard: smallBoard, showEngineLines: showEngineLines),
-        );
-    await ref
-        .read(broadcastPreferencesProvider.notifier)
-        .save(
-          ref
-              .read(broadcastPreferencesProvider)
               .copyWith(smallBoard: smallBoard, showEngineLines: showEngineLines),
         );
 
@@ -134,72 +81,7 @@ class _AppState extends ConsumerState<Application> {
   void initState() {
     _screenSizeBasedInitialization(ref);
 
-    // Start services
     ref.read(appLogServiceProvider).start();
-    ref.read(notificationServiceProvider).start();
-    ref.read(messageServiceProvider).start();
-    ref.read(challengeServiceProvider).start();
-    ref.read(accountServiceProvider).start();
-    ref.read(correspondenceServiceProvider).start();
-    ref.read(quickActionServiceProvider).start();
-    ref.read(announceServiceProvider).start();
-    ref.read(appLinksServiceProvider).start();
-    ref.read(sharedPgnServiceProvider).start();
-
-    if (Platform.isIOS) {
-      HomeWidget.setAppGroupId(_kIosAppGroupId);
-      HomeWidget.saveWidgetData<String>('lichessHost', kLichessHost);
-      ref.listenManual(kidModeProvider, (prev, state) {
-        if (state.hasValue && prev?.value != state.value) {
-          HomeWidget.saveWidgetData<bool>('isKidMode', state.value).then((_) {
-            Future.wait([
-              for (final kind in _kIosBlogWidgetKinds) HomeWidget.updateWidget(iOSName: kind),
-            ]);
-          });
-        }
-      }, fireImmediately: true);
-      ref.listenManual(boardPreferencesProvider, (prev, state) {
-        if (prev == null ||
-            prev.boardTheme != state.boardTheme ||
-            prev.pieceSet != state.pieceSet) {
-          Future.wait([
-            HomeWidget.saveWidgetData<String>('boardTheme', state.boardTheme.name),
-            HomeWidget.saveWidgetData<String>('pieceSet', state.pieceSet.name),
-          ]).then((_) {
-            HomeWidget.updateWidget(iOSName: 'DailyPuzzleLargeWidget');
-          });
-        }
-      }, fireImmediately: true);
-    }
-
-    // Listen for connectivity changes and perform actions accordingly.
-    ref.listenManual(connectivityChangesProvider, (prev, current) async {
-      final prevWasOffline = prev?.value?.isOnline == false;
-      final currentIsOnline = current.value?.isOnline == true;
-
-      // Play registered moves whenever the app comes back online.
-      if (prevWasOffline && currentIsOnline) {
-        final nbMovesPlayed = await ref.read(correspondenceServiceProvider).playRegisteredMoves();
-        if (nbMovesPlayed > 0) {
-          ref.invalidate(ongoingGamesProvider);
-        }
-      }
-
-      // Perform actions once when the app comes online.
-      if (current.value?.isOnline == true && !_firstTimeOnlineCheck) {
-        _firstTimeOnlineCheck = true;
-        ref.read(correspondenceServiceProvider).syncGames();
-      }
-
-      final socketClient = ref.read(socketPoolProvider).currentClient;
-      if (current.value?.isOnline == true &&
-          current.value?.appState == AppLifecycleState.resumed &&
-          !socketClient.isActive) {
-        socketClient.connect();
-      } else if (current.value?.isOnline == false) {
-        socketClient.close();
-      }
-    });
 
     super.initState();
   }
@@ -220,7 +102,7 @@ class _AppState extends ConsumerState<Application> {
         CupertinoLocalizationsEo.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      title: 'lichess.org',
+      title: 'A1Chess',
       locale: generalPrefs.locale,
       theme: theme.copyWith(
         navigationBarTheme: isIOS
