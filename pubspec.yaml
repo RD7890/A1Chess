@@ -1,5 +1,5 @@
-name: a1_chess
-description: A1 Chess - A premium chess app powered by Lichess
+name: lichess_mobile
+description: A1 Chess - A feature-rich mobile chess app (com.ryzix.rdchess)
 publish_to: "none"
 
 version: 0.24.3+002403 # See README.md for details about versioning
