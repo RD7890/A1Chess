@@ -1,8 +1,5 @@
 name: "A1 Chess — Compile › Sign › Release"
 
-# ───────────────────────────────────────────────────────────────────────────
-# Triggers
-# ───────────────────────────────────────────────────────────────────────────
 on:
   push:
     branches:
@@ -28,27 +25,21 @@ on:
 permissions:
   contents: write
 
-# Cancel any in-progress run for the same ref
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# ───────────────────────────────────────────────────────────────────────────
-# Jobs
-# ───────────────────────────────────────────────────────────────────────────
 jobs:
   build_release:
     name: "Compile › Sign › Release"
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Source ────────────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ── 2. Toolchain ─────────────────────────────────────────────────────
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -60,10 +51,9 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: pubspec.yaml   # pins exact Flutter version from pubspec
+          flutter-version-file: pubspec.yaml
           cache: true
 
-      # ── 3. Cache ─────────────────────────────────────────────────────────
       - name: Cache pub packages
         uses: actions/cache@v4
         with:
@@ -80,22 +70,14 @@ jobs:
           key: ${{ runner.os }}-gradle-v2-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-v2-
 
-      # ── 4. Dependencies + Codegen ─────────────────────────────────────────
       - name: Install pub dependencies
         run: flutter pub get
 
       - name: Run code generation
         run: dart run build_runner build --delete-conflicting-outputs
 
-      # ── 5. Stockfish 17.1 High ───────────────────────────────────────────
-      # SF17.1 official Android binaries are staged as libstockfish17.so
-      # in jniLibs — Android's package manager installs them to
-      # nativeLibraryDir so the app can execute them via absolute path.
-      # arm64-v8a dotprod  = highest strength (dotprod SIMD, ~2016+ devices)
-      # armeabi-v7a NEON   = 32-bit fallback for older hardware
       - name: Stage Stockfish 17.1 Android binaries
         run: |
-          # arm64-v8a — dotprod (high strength)
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           mkdir -p /tmp/sf17-arm64
           curl -fsSL \
@@ -104,8 +86,6 @@ jobs:
           tar -xf /tmp/sf17-arm64.tar -C /tmp/sf17-arm64
           find /tmp/sf17-arm64 -name "stockfish-android-armv8-dotprod" -exec \
             cp {} android/app/src/main/jniLibs/arm64-v8a/libstockfish17.so \;
-
-          # armeabi-v7a — NEON (fallback)
           mkdir -p android/app/src/main/jniLibs/armeabi-v7a
           mkdir -p /tmp/sf17-arm
           curl -fsSL \
@@ -114,33 +94,26 @@ jobs:
           tar -xf /tmp/sf17-arm.tar -C /tmp/sf17-arm
           find /tmp/sf17-arm -name "stockfish-android-armv7-neon" -exec \
             cp {} android/app/src/main/jniLibs/armeabi-v7a/libstockfish17.so \;
-
           echo "═══════════════ Stockfish 17.1 Sizes ═══════════════"
           ls -lh android/app/src/main/jniLibs/arm64-v8a/libstockfish17.so
           ls -lh android/app/src/main/jniLibs/armeabi-v7a/libstockfish17.so
 
-      # ── 6. Signing Keystore ───────────────────────────────────────────────
-      # Required secrets (add in repo Settings → Secrets and variables → Actions):
-      #   KEYSTORE_BASE64          — base64 of your .jks keystore file
-      #   KEYSTORE_STORE_PASSWORD  — keystore password
-      #   KEYSTORE_KEY_ALIAS       — key alias inside the keystore
-      #   KEYSTORE_KEY_PASSWORD    — key password
-      - name: Configure release keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
-          KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
-          KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+      - name: Generate signing keystore
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/keystore.jks
+          keytool -genkey -v \
+            -keystore android/app/keystore.jks \
+            -storetype JKS \
+            -alias a1chess \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass a1chess2024 -keypass a1chess2024 \
+            -dname "CN=A1Chess,OU=Mobile,O=Ryzix,L=City,ST=State,C=US"
           {
             echo "storeFile=keystore.jks"
-            echo "storePassword=$KEYSTORE_STORE_PASSWORD"
-            echo "keyAlias=$KEYSTORE_KEY_ALIAS"
-            echo "keyPassword=$KEYSTORE_KEY_PASSWORD"
+            echo "storePassword=a1chess2024"
+            echo "keyAlias=a1chess"
+            echo "keyPassword=a1chess2024"
           } > android/key.properties
 
-      # ── 7. Version ────────────────────────────────────────────────────────
       - name: Extract version from pubspec
         id: version
         run: |
@@ -148,10 +121,6 @@ jobs:
           echo "name=$VER" >> "$GITHUB_OUTPUT"
           echo "Version → $VER (Build #${{ github.run_number }})"
 
-      # ── 8. Build — ABI-split for smallest download size ───────────────────
-      # arm64-v8a : ~60 % smaller than universal, covers 98 %+ of real devices
-      # armeabi-v7a : legacy 32-bit phones (pre-2016)
-      # --obfuscate + --split-debug-info strips symbols from the APK
       - name: Build arm64-v8a APK (primary)
         run: |
           flutter build apk --release \
@@ -175,7 +144,6 @@ jobs:
           echo "═══════════════ A1 Chess APK Size Report ═══════════════"
           ls -lh build/app/outputs/flutter-apk/a1chess-*.apk
 
-      # ── 9. GitHub Release ─────────────────────────────────────────────────
       - name: Create GitHub Release
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
@@ -196,23 +164,15 @@ jobs:
 
             ### Engine
             - **Stockfish 17.1** bundled as native library
-              - `arm64-v8a` → `armv8-dotprod` (highest strength SIMD)
-              - `armeabi-v7a` → `armv7-neon` (32-bit fallback)
-            - Engine binary installed to `nativeLibraryDir` by Android at install time
+            - `arm64-v8a` → `armv8-dotprod` (highest strength SIMD)
+            - `armeabi-v7a` → `armv7-neon` (32-bit fallback)
 
             ### Build info
             - **Branch:** `${{ github.ref_name }}`
-            - **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-            - **Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-            ### Size optimizations applied
-            - ✅ Per-ABI split (arm64 ≈ 60 % smaller vs universal)
-            - ✅ Dart obfuscation + debug symbol split
-            - ✅ R8 minification + resource shrinking (build.gradle.kts)
-            - ✅ `dependenciesInfo` stripped from APK
-            - ✅ x86_64 excluded (emulator-only ABI removed)
+            - **Commit:** `${{ github.sha }}`
           draft: false
           prerelease: ${{ github.event.inputs.release_type != 'release' }}
           files: build/app/outputs/flutter-apk/a1chess-*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
