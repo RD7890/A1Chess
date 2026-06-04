@@ -60,7 +60,7 @@ class LearnTabScreen extends ConsumerWidget {
       canPop: false,
       onPopInvokedWithResult: (bool didPop, _) {
         if (!didPop) {
-          ref.read(currentBottomTabProvider.notifier).state = BottomTab.home;
+          ref.read(currentBottomTabProvider.notifier).state = BottomTab.play;
         }
       },
       child: PlatformScaffold(
