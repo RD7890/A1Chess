@@ -14,8 +14,6 @@ Future<void> main() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   final lichessBinding = AppLichessBinding.ensureInitialized();
 
-  // Show splash screen until app is ready
-  // See src/app.dart for splash screen removal
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   await lichessBinding.preloadSharedPreferences();
@@ -26,13 +24,7 @@ Future<void> main() async {
 
   await SoundService.initialize();
 
-  final locale = await setupIntl(widgetsBinding);
-
-  await initializeLocalNotifications(locale);
-
-  if (defaultTargetPlatform != TargetPlatform.linux) {
-    await lichessBinding.initializeFirebase();
-  }
+  await setupIntl(widgetsBinding);
 
   if (defaultTargetPlatform == TargetPlatform.android) {
     await androidDisplayInitialization(widgetsBinding);
